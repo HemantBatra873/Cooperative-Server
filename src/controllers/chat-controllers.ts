@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import User from "../models/user.js";
-import { geminiAiModel } from "../db/AiModelConfig.js";
+import { genAI, SYSTEM_INSTRUCTION } from "../db/AiModelConfig.js";
 
 interface ChatMessage {
   role: "user" | "model"; 
@@ -21,31 +21,40 @@ export const generateChatCompletionGemini = async (
         .status(401)
         .json({ message: "User not registered OR Token malfunctioned" });
 
-    // Grab chats of user
-    const chats = user.chats.map(({ role, content }) => ({
-      role,
-      content ,
-    })) as ChatMessage[]; // Cast to Chat[] (replace with your Gemini chat type)
+    const contents = user.chats.map((chat) => ({
+      role: chat.role === "user" ? "user" : "model",
+      parts: [{ text: chat.content }],
+    }));
 
-    chats.push({ content: message, role: "user" }); // Add user message
+    contents.push({ role: "user", parts: [{ text: message }] });
+    
     user.chats.push({ content: message, role: "user" });
 
-    // Send all chats with new one to Gemini
-    const result = await geminiAiModel.sendMessage(chats.map((chat) => chat.content));
+    // Call the stateless generateContent method with the full history
+    const response = await genAI.models.generateContent({
+      model: "gemini-flash-latest",
+      contents: contents,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION,
+        temperature: 1,
+        topP: 0.95,
+        topK: 40,
+        maxOutputTokens: 8192,
+      },
+    });
+
+    const aiMessage = response.text || "";
 
     // Update user chats with response
-    user.chats.push({ content: result.response.candidates[0].content.parts[0].text, role: "model" });
+    user.chats.push({ content: aiMessage, role: "model" });
     await user.save();
 
     return res.status(200).json({ chats: user.chats });
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
-
-// Replace "Chat" with the actual type used for chat messages in your Gemini interaction
-
 
 export const sendChatsToUser = async (
   req: Request,

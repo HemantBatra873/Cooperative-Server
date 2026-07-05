@@ -44,8 +44,8 @@ export const userSignup = async (
       expires,
       httpOnly: true,
       signed: true,
-      secure:true,
-      sameSite:'none',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
 
     return res
@@ -86,8 +86,8 @@ export const userLogin = async (
       expires,
       httpOnly: true,
       signed: true,
-      secure:true,
-      sameSite:'none',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
 
     return res
@@ -128,27 +128,18 @@ export const userLogout = async (
   next: NextFunction
 ) => {
   try {
-    //user token check
-    const user = await User.findById(res.locals.jwtData.id);
-    if (!user) {
-      return res.status(401).send("User not registered OR Token malfunctioned");
-    }
-    if (user._id.toString() !== res.locals.jwtData.id) {
-      return res.status(401).send("Permissions didn't match");
-    }
-
     res.clearCookie(COOKIE_NAME, {
       httpOnly: true,
       domain: COOKIE_DOMAIN,
       signed: true,
       path: "/",
-      secure:true,
-      sameSite:'none',
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
     });
 
     return res
       .status(200)
-      .json({ message: "Logout Succesful", name: user.name, email: user.email });
+      .json({ message: "Logout Succesful" });
   } catch (error) {
     console.log(error);
     return res.status(200).json({ message: "ERROR", cause: error.message });
